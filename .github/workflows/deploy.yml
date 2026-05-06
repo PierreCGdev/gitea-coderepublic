@@ -1,0 +1,36 @@
+name: Deploy to production
+
+# Déclenché automatiquement après le build réussi
+on:
+  workflow_run:
+    workflows: ["Build and push Docker image"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Ne déploie que si le build a réussi
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Get image tag
+        id: tag
+        run: echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      # SSH sur le bastion → manager[0] → docker service update
+      - name: Deploy to Swarm via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.BASTION_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Connexion au manager via ProxyJump depuis le bastion
+            ssh -o StrictHostKeyChecking=no \
+                -i ~/.ssh/gitea-project \
+                ubuntu@${{ secrets.MANAGER_IP }} \
+                "sudo docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_TOKEN }} && \
+                 sudo docker service update \
+                   --image ghcr.io/pierrecgdev/gitea-coderepublic:latest \
+                   gitea_gitea"
