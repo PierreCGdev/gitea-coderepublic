@@ -1,0 +1,31 @@
+name: Load tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  locust:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Locust
+        run: pip install locust
+
+      - name: Run load tests
+        run: |
+          locust --headless \
+            --locustfile tests/load/locustfile.py \
+            --host ${{ secrets.STAGING_URL }} \
+            --users 10 \
+            --spawn-rate 2 \
+            -t 30s \
+            --only-summary
